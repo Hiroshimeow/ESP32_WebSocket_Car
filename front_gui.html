@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <META HTTP-EQUIV="Expires" CONTENT="-1">
+    <META HTTP-EQUIV="Pragma" CONTENT="no-cache">
+    <META HTTP-EQUIV="Cache-Control" CONTENT="no-cache">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>ESP32-CAM WiFi Car</title>
+    <style>
+      /* --- CSS không thay đổi --- */
+      body { -webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; font-family: Arial, Helvetica, sans-serif; margin: 0; background-color: #f1f1f1; }
+      .hidden { display: none; }
+      .actions, .configuration { padding: 5px 10px; }
+      .configuration__item { margin-bottom: 10px; display: flex; align-items: center; }
+      .configuration__tag { position: absolute; width: 100px; }
+      .configuration input[type=text], .configuration input[type=password] { margin-left: 100px; }
+      .configuration input[type=radio] { margin-left: 100px; }
+      .actions button { margin: 0 5px; }
+      .config__button { margin-right: 10px; }
+      .wifiscanlist { border: 1px solid #000; margin-bottom: 15px; width: fit-content; }
+      table, th, td { border: 1px solid #000; border-collapse: collapse; color: #565656; }
+      th, td { padding: 2px 5px; }
+      .wifiselect { color: #565656; cursor: pointer; }
+      .wifiselect:hover { color: #0a1aec; }
+      .wifi__signal { width: 100px; height: 10px; border: 1px solid #000; }
+      .wifi__signal-inside { height: 10px; width: 0%; background-color: #1b019b; }
+      .wifi__signal-inside--20 { width: 20%; } .wifi__signal-inside--40 { width: 40%; } .wifi__signal-inside--60 { width: 60%; } .wifi__signal-inside--80 { width: 80%; } .wifi__signal-inside--100 { width: 100%; }
+      .loading-wifi-list { margin: 20px; }
+      #content { display: flex; flex-direction: column; align-items: center; width: 100%; padding-top: 10px; }
+      .cam { background-color: gray; width: 100%; max-width: 640px; margin-bottom: 15px; border: 1px solid black; position: relative; aspect-ratio: 4 / 3; }
+      .camerastream { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
+      .pad { position: relative; width: 265px; }
+      .named-button-pad { text-align: center; }
+      .named-button-pad button{ width: 78px; height: 50px; margin: 2px; font-size: 10px; text-align: center; line-height: 40px; }
+      .named-button-pad__forward { border-top-left-radius: 10px; border-top-right-radius: 10px; }
+      .named-button-pad__left { border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+      .named-button-pad__right { border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
+      .named-button-pad__backward { border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; }
+      .joystick-pad { margin: 0 auto; width: 170px; }
+      .joystick__container { width: 100px; height: 100px; padding: 35px; border-radius: 100%; border: 1px solid black; }
+      #wrapper { width: 100px; height: 100px; border-radius: 100%; border: 1px solid black; }
+      .joystick { background-color: #d8d8d8; border-radius: 100%; cursor: pointer; cursor: hand; height: 90%; user-select: none; width: 90%; margin: 5%; }
+    </style>
+    <script language="JavaScript">
+      // Polyfills không thay đổi
+      if (typeof XMLHttpRequest == "undefined") XMLHttpRequest = function () { try { return new ActiveXObject("Msxml2.XMLHTTP.6.0"); } catch (e) {} try { return new ActiveXObject("Msxml2.XMLHTTP.3.0"); } catch (e) {} try { return new ActiveXObject("Microsoft.XMLHTTP"); } catch (e) {} throw new Error("This browser does not support XMLHttpRequest."); };
+      (function(f) { 'use strict'; if (typeof exports === 'object' && exports != null && typeof exports.nodeType !== 'number') { module.exports = f (); } else if (typeof define === 'function' && define.amd != null) { define ([], f); } else { var base64 = f (); var global = typeof self !== 'undefined' ? self : $.global; if (typeof global.btoa !== 'function') global.btoa = base64.btoa; if (typeof global.atob !== 'function') global.atob = base64.atob; } } (function() { 'use strict'; var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/='; function InvalidCharacterError(message) { this.message = message; } InvalidCharacterError.prototype = new Error (); InvalidCharacterError.prototype.name = 'InvalidCharacterError'; function btoa(input) { var str = String (input); for ( var block, charCode, idx = 0, map = chars, output = ''; str.charAt (idx | 0) || (map = '=', idx % 1); output += map.charAt (63 & block >> 8 - idx % 1 * 8) ) { charCode = str.charCodeAt (idx += 3 / 4); if (charCode > 0xFF) { throw new InvalidCharacterError ("'btoa' failed: The string to be encoded contains characters outside of the Latin1 range."); } block = block << 8 | charCode; } return output; } function atob(input) { var str = (String (input)).replace (/[=]+$/, ''); if (str.length % 4 === 1) { throw new InvalidCharacterError ("'atob' failed: The string to be decoded is not correctly encoded."); } for ( var bc = 0, bs, buffer, idx = 0, output = ''; buffer = str.charAt (idx++); ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer, bc++ % 4) ? output += String.fromCharCode (255 & bs >> (-2 * bc & 6)) : 0 ) { buffer = chars.indexOf (buffer); } return output; } return {btoa: btoa, atob: atob}; }));
+    </script>
+    <script>
+      let webSocket;
+      const fixedSpeed = 80; 
+      var lastCommandPayload = "";
+
+      function initWebSocket() {
+        const ws_uri = `ws://${window.location.hostname}:82/`;
+        webSocket = new WebSocket(ws_uri);
+        webSocket.onopen = () => console.log('WebSocket Connected');
+        webSocket.onclose = () => { setTimeout(initWebSocket, 2000); };
+        webSocket.onerror = (err) => console.error('WebSocket Error:', err);
+      }
+      
+      function sendCommand(payload) {
+        if (!webSocket || webSocket.readyState !== WebSocket.OPEN) return;
+        const payloadStr = JSON.stringify(payload);
+        if (payloadStr === lastCommandPayload) return;
+        webSocket.send(payloadStr);
+        lastCommandPayload = payloadStr;
+      }
+
+      function controlCar(direction, speedValue = fixedSpeed) {
+        let payload = {};
+        if (direction === 'lighton' || direction === 'lightoff') {
+            payload = { lighton: (direction === 'lighton') };
+        } else if (direction === 'claxonon' || direction === 'claxonoff') {
+            payload = { claxonon: (direction === 'claxonon') };
+        } else {
+            payload = { direction: direction, speed: speedValue };
+        }
+        sendCommand(payload);
+      }
+
+      var lightOn = false;
+      function controlLight() {
+        lightOn = !lightOn;
+        const payload = { lighton: lightOn };
+        sendCommand(payload);
+        document.getElementById('light').innerHTML = lightOn ? "Light OFF (Q)" : "Light On (Q)";
+      }
+
+      var xhttp = new XMLHttpRequest();
+      var lastKeyPressed = '';
+      var isConfiguring = false;
+      xhttp.open('GET', document.location, false);
+      xhttp.send(null);
+      var headers = xhttp.getAllResponseHeaders();
+      var arr = headers.trim().split(/[\r\n]+/);
+      var headerMap = {};
+      for (var i = 0; i < arr.length; i++) { var parts = arr[i].split(': '); headerMap[parts[0].toLowerCase()] = parts[1]; }
+      var claxonOn = false;
+      var forwardKey = false;
+      if (document.addEventListener) { document.addEventListener("keydown",keydown,false); document.addEventListener("keyup",keyup,false); } else if (document.attachEvent) { document.attachEvent("onkeydown", keydown); document.attachEvent("onkeyup", keyup); } else { document.onkeydown= keydown; document.onkeyup= keyup; }
+      function keydown(e) { var event = window.event ? window.event : e; if (lastKeyPressed != event.keyCode) { if (!isConfiguring) { switch (event.keyCode) { case 81: controlLight(); break; case 87: showConfigOptions(); break; case 32: controlCar('claxonon'); break; case 37: controlCar('W'); break; case 39: controlCar('E'); break; case 38: controlCar('N'); forwardKey = true; break; case 40: controlCar('S'); break; } } } lastKeyPressed = event.keyCode; }
+      function keyup(e) { if (!isConfiguring) { var event = window.event ? window.event : e; if (event.keyCode == 37) { if (forwardKey) { controlCar('N'); } else { controlCar('stop'); } } if (event.keyCode == 38) { controlCar('stop'); forwardKey = false; } if (event.keyCode == 39) { if (forwardKey) { controlCar('N'); } else { controlCar('stop'); } } if (event.keyCode == 40) { controlCar('stop'); } if (event.keyCode == 32) { controlCar('claxonoff'); } lastKeyPressed = ''; } }
+      function showConfigOptions () { document.getElementById('content').style.display = 'none'; document.getElementById('configuration').style.display = 'block'; isConfiguring = true; }
+      function addWifiForm(ssid) { document.getElementById('ssid').value = ssid; document.getElementById('pass').value = ''; }
+      function wifiScan() { document.getElementById('wifiscanlist').style.display = 'none'; document.getElementById('loading-wifi-list').style.display = 'block'; setTimeout(function() { var xhttp = new XMLHttpRequest(); var url = 'http://' + headerMap['server'] + '/wifilist?time=' + new Date().getTime(); xhttp.open('GET', url, false); xhttp.send(null); if (xhttp.status == 200) { var responseJSON = JSON.parse(xhttp.responseText); var result = responseJSON.result; var wifiListHTML = "<table class='wifiscanlist'><tr><th>WIFI name (SSID)</th><th style=text-align:center>WIFI signal quality</th><th>Password?</th></tr>"; for (var i = 0; i < result.length; i++) { var wifiRow = result[i]; var wifiSignal = wifiRow.signal; var wifiValue = 0; if (wifiSignal < -90) { wifiValue = 0; } else if (wifiSignal < -85) { wifiValue = 20; } else if (wifiSignal < -75) { wifiValue = 40; } else if (wifiSignal < -65) { wifiValue = 80; } else if (wifiSignal < 0) { wifiValue = 100; } wifiListHTML += "<tr>"; wifiListHTML += '<td class=wifiselect onclick="' + "addWifiForm('" + wifiRow.ssid + "')" + '">' + wifiRow.ssid + "</td>"; wifiListHTML += '<td><div class="wifi__signal"><div class="wifi__signal-inside wifi__signal-inside--' + wifiValue + '"></div></div>' + "</td>"; wifiListHTML += "<td>" + wifiRow.security + "</td>"; wifiListHTML += "</tr>"; } wifiListHTML += "<table>"; document.getElementById('loading-wifi-list').style.display = 'none'; document.getElementById('wifiscanlist').style.display = 'block'; document.getElementById('wifiscanlist').innerHTML = wifiListHTML; } }, 100); }
+      
+      // *** CẬP NHẬT HÀM LƯU CẤU HÌNH ***
+      function saveConfig () { 
+        var wifissid = document.getElementById('ssid').value;
+        var wifipass = document.getElementById('pass').value;
+        var usercontrol = '';
+        for (var i=0; i < document.configurationform.usercontrol.length; i++) { if (document.configurationform.usercontrol[i].checked) { usercontrol = document.configurationform.usercontrol[i].value; } }
+        
+        // *** LẤY GIÁ TRỊ CẤU HÌNH MOTOR ***
+        var drivepower = document.getElementById('drivepower').value;
+        var steerpower = document.getElementById('steerpower').value;
+        var driverev = document.getElementById('driverev').checked ? '1' : '0';
+        var steerrev = document.getElementById('steerrev').checked ? '1' : '0';
+
+        try {
+          // *** THÊM CÁC THAM SỐ CẤU HÌNH MOTOR VÀO URL ***
+          var url = 'http://' + headerMap['server'] + '/control?command=saveconfig'
+            + '&ssid=' + btoa(wifissid)
+            + '&password=' + btoa(wifipass) 
+            + '&usercontrol=' + usercontrol
+            + '&drivepower=' + drivepower
+            + '&steerpower=' + steerpower
+            + '&driverev=' + driverev
+            + '&steerrev=' + steerrev
+            + '&time=' + new Date().getTime(); 
+            
+          xhttp.open('GET', url, false); xhttp.send(null); alert('Configuration saved! The car will now restart. Wait about 10 seconds. If it was connected to a WiFi network, you may need to find its new IP address.');
+        } catch (e) {
+          alert('Error saving settings. Check that the car is on and connected.');
+        }
+        document.getElementById('configuration').style.display = 'none'; document.getElementById('content').style.display = 'flex'; isConfiguring = false;
+      }
+      
+      function cancelConfig() { document.getElementById('configuration').style.display = 'none'; document.getElementById('content').style.display = 'flex'; isConfiguring = false; }
+    </script>
+</head>
+<body>
+    <div class="actions">
+      <span>Actions:</span>
+      <button id="claxon" onmousedown="controlCar('claxonon')" onmouseup="controlCar('claxonoff')" ontouchstart="controlCar('claxonon')" ontouchend="controlCar('claxonoff')"> Claxon (space) </button>
+      <button id="light" onclick="controlLight()"> Light On (Q) </button>
+      <button id="config" type="button" onclick="showConfigOptions()"> WIFI and Config (W) </button>
+    </div>
+    <hr />
+    <div id="configuration" class="configuration hidden">
+      <form name="configurationform" onsubmit="return false;">
+        <div>
+          <div>
+            <h3>Available WIFI networks</h3>
+            <p>Click to add to your WIFI configuration text box.</p>
+            <div id="loading-wifi-list" class="loading-wifi-list hidden"><b>Loading...</b></div>
+            <div id="wifiscanlist" ></div>
+            <button type="button" class="wifiscan__button" onclick="wifiScan()">Scan WIFI networks</button>
+          </div>
+          <h3>Your WIFI Configuration</h3>
+          <div class="configuration__item"> <div class="configuration__tag">SSID:</div> <input type="text" id="ssid" name="ssid"> </div>
+          <div class="configuration__item"> <div class="configuration__tag">Password:</div> <input type="password" id="pass" name="pass"> </div>
+        </div>
+        <hr />
+        <div>
+          <h3>Control:</h3>
+          <div class="configuration__item"> <div class="configuration__tag">Buttons text</div> <input type="radio" id="buttonstext" name="usercontrol" value="buttonstext"> </div>
+          <div class="configuration__item"> <div class="configuration__tag">Buttons Icons</div> <input type="radio" id="buttonsicons" name="usercontrol" value="buttonsicons"> </div>
+          <div class="configuration__item"> <div class="configuration__tag">Joystick</div> <input type="radio" id="joystick" name="usercontrol" value="joystick"> </div>
+        </div>
+        
+        <!-- *** KHU VỰC CẤU HÌNH MOTOR MỚI *** -->
+        <hr />
+        <div>
+          <h3>Motor Configuration</h3>
+          <div class="configuration__item">
+             <label for="drivepower" style="width: 150px;">Rear Motor Power:</label>
+             <input type="range" id="drivepower" min="0" max="100" value="100" oninput="document.getElementById('drivepower_val').innerText = this.value">
+             <span id="drivepower_val" style="margin-left: 10px; width: 30px;">100</span>
+             <input type="checkbox" id="driverev" style="margin-left: 20px;">
+             <label for="driverev">Reverse Direction</label>
+          </div>
+          <div class="configuration__item">
+            <label for="steerpower" style="width: 150px;">Front Motor Power:</label>
+            <input type="range" id="steerpower" min="0" max="100" value="40" oninput="document.getElementById('steerpower_val').innerText = this.value">
+            <span id="steerpower_val" style="margin-left: 10px; width: 30px;">40</span>
+            <input type="checkbox" id="steerrev" style="margin-left: 20px;">
+            <label for="steerrev">Reverse Direction</label>
+         </div>
+        </div>
+        <!-- *** KẾT THÚC KHU VỰC CẤU HÌNH MOTOR *** -->
+
+        <hr />
+        <button type="button" class="config__button" onclick="saveConfig()">Save configuration</button>
+        <button type="button" class="config__button" onclick="cancelConfig()">Cancel</button>
+      </form>
+    </div>
+    <div id="content" class="content">
+      <div class="cam"> 
+        <img id="camerastream" class="camerastream"> 
+      </div>
+      <div class="pad">
+        <div id="named-button-pad" class="named-button-pad hidden">
+          <div> <button id="forward" class="named-button-pad__forward" onmousedown="controlCar('N')" onmouseup="controlCar('stop')" ontouchstart="controlCar('N')" ontouchend="controlCar('stop')"></button> </div>
+          <div> <button id="turnleft" class="named-button-pad__left" onmousedown="controlCar('W')" onmouseup="controlCar('stop')" ontouchstart="controlCar('W')" ontouchend="controlCar('stop')"></button> <button id="stop" onmousedown="controlCar('stop')" onmouseup="controlCar('stop')" ontouchstart="controlCar('stop')" ontouchend="controlCar('stop')"></button> <button id="turnright" class="named-button-pad__right" onmousedown="controlCar('E')" onmouseup="controlCar('stop')" ontouchstart="controlCar('E')" ontouchend="controlCar('stop')"></button> </div>
+          <div> <button id="backward" class="named-button-pad__backward" onmousedown="controlCar('S')" onmouseup="controlCar('stop')" ontouchstart="controlCar('S')" ontouchend="controlCar('stop')"></button> </div>
+        </div>
+        <div id="joystick-pad" class="joystick-pad hidden">
+          <div class="joystick__container"> <div id="wrapper"></div> </div>
+        </div>
+      </div>
+    </div>
+    <script language="JavaScript">
+      window.addEventListener('load', initWebSocket);
+      if (headerMap['usercontrol'] == 'joystick') { document.getElementById('joystick').checked = true; document.getElementById('joystick-pad').style.display = 'block'; } else if (headerMap['usercontrol'] == 'buttonsicons') { document.getElementById('forward').innerHTML = "&#8593;"; document.getElementById('turnleft').innerHTML = "&#8592;"; document.getElementById('stop').innerHTML = "&#9633;"; document.getElementById('turnright').innerHTML = "&#8594;"; document.getElementById('backward').innerHTML = "&#8595;"; document.getElementById('buttonsicons').checked = true; document.getElementById('named-button-pad').style.display = 'block'; } else { document.getElementById('forward').innerHTML = "Forward"; document.getElementById('turnleft').innerHTML = "Turn Left"; document.getElementById('stop').innerHTML = "Stop"; document.getElementById('turnright').innerHTML = "Turn Right"; document.getElementById('backward').innerHTML = "Backward"; document.getElementById('buttonstext').checked = true; document.getElementById('named-button-pad').style.display = 'block'; }
+      if (headerMap['wifissid']) { document.getElementById('ssid').value = atob(headerMap['wifissid']); }
+      if (headerMap['wifipass']) { document.getElementById('pass').value = atob(headerMap['wifipass']); }
+      
+      // *** ĐỌC VÀ HIỂN THỊ CẤU HÌNH MOTOR ĐÃ LƯU ***
+      if (headerMap['drivepower']) { 
+        document.getElementById('drivepower').value = headerMap['drivepower']; 
+        document.getElementById('drivepower_val').innerText = headerMap['drivepower']; 
+      }
+      if (headerMap['steerpower']) { 
+        document.getElementById('steerpower').value = headerMap['steerpower'];
+        document.getElementById('steerpower_val').innerText = headerMap['steerpower'];
+      }
+      if (headerMap['driverev'] == '1') { document.getElementById('driverev').checked = true; }
+      if (headerMap['steerrev'] == '1') { document.getElementById('steerrev').checked = true; }
+
+      document.getElementById('camerastream').src='http://'+headerMap['server']+':81/stream';
+    </script>
+    <script>
+      const joystick = createJoystick(document.getElementById('wrapper'));
+      const maxJoystickDiff = 40;
+
+      function moveCar(x, y, stop) {
+        let direction = 'stop';
+        let dynamicSpeed = 0;
+
+        if (!stop) {
+            const angle = Math.atan2(y, x) * (180 / Math.PI);
+            const distance = Math.hypot(x, y);
+            
+            dynamicSpeed = Math.min(100, Math.round((distance / maxJoystickDiff) * 100));
+
+            if (dynamicSpeed > 15) {
+                if (angle > -22.5 && angle <= 22.5) { direction = 'E'; }
+                else if (angle > 22.5 && angle <= 67.5)  { direction = 'SE'; }
+                else if (angle > 67.5 && angle <= 112.5) { direction = 'S'; }
+                else if (angle > 112.5 && angle <= 157.5){ direction = 'SW'; }
+                else if (angle > 157.5 || angle <= -157.5){ direction = 'W'; }
+                else if (angle > -157.5 && angle <= -112.5){ direction = 'NW'; }
+                else if (angle > -112.5 && angle <= -67.5){ direction = 'N'; }
+                else if (angle > -67.5 && angle <= -22.5) { direction = 'NE'; }
+            } else {
+                direction = 'stop';
+                dynamicSpeed = 0;
+            }
+        }
+        
+        controlCar(direction, dynamicSpeed);
+      }
+
+      function createJoystick(parent) { const maxDiff = 40; const stick = document.createElement('div'); stick.classList.add('joystick'); var dragStart = null; var currentPos = { x: 0, y: 0 }; function handleMouseDown(event) { stick.style.transition = '0s'; if (event.changedTouches) { dragStart = { x: event.changedTouches[0].clientX, y: event.changedTouches[0].clientY, }; return; } dragStart = { x: event.clientX, y: event.clientY, }; } stick.addEventListener('mousedown', handleMouseDown, false); document.addEventListener('mousemove', handleMouseMove, false); document.addEventListener('mouseup', handleMouseUp, false); stick.addEventListener('touchstart', handleMouseDown, false); document.addEventListener('touchmove', handleMouseMove, false); document.addEventListener('touchend', handleMouseUp, false); function handleMouseMove(event) { if (dragStart === null) return; event.preventDefault(); if (event.changedTouches) { event.clientX = event.changedTouches[0].clientX; event.clientY = event.changedTouches[0].clientY; } const xDiff = event.clientX - dragStart.x; const yDiff = event.clientY - dragStart.y; const angle = Math.atan2(yDiff, xDiff); const distance = Math.min(maxDiff, Math.hypot(xDiff, yDiff)); const xNew = distance * Math.cos(angle); const yNew = distance * Math.sin(angle); stick.style.transform = 'translate3d(' + xNew + 'px, ' + yNew + 'px, 0px)'; currentPos = { x: xNew, y: yNew }; moveCar(currentPos.x, currentPos.y, false); } function handleMouseUp(event) { if (dragStart === null) return; stick.style.transition = '.2s'; stick.style.transform = 'translate3d(0px, 0px, 0px)'; dragStart = null; currentPos = { x: 0, y: 0 }; moveCar(currentPos.x, currentPos.y, true); } parent.appendChild(stick); return { getPosition: function () { return currentPos }, }; }
+      if (navigator.getGamepads) { var lightPresed = false; setInterval(function () { const myGamepads = navigator.getGamepads(); if (!!myGamepads && myGamepads.length > 0) { const myGamepad = myGamepads[0]; if (myGamepad && myGamepad.axes && myGamepad.axes.length > 0 && myGamepad.buttons && myGamepad.buttons.length > 0) { let command; if (myGamepad.axes[0] < -0.6) { command = "W"; } else if (myGamepad.axes[0] > 0.6) { command = "E"; } else if (myGamepad.axes[1] < -0.6 || myGamepad.buttons[7].pressed || myGamepad.buttons[9].pressed) { command = "N"; } else if (myGamepad.axes[1] > 0.6 || myGamepad.buttons[6].pressed || myGamepad.buttons[8].pressed) { command = "S"; } else { command = "stop"; } if (myGamepad.buttons[0].pressed) { if (!claxonOn) { controlCar("claxonon"); } claxonOn = true; } else { if (claxonOn) { controlCar("claxonoff"); } claxonOn = false; } if (myGamepad.buttons[3].pressed) { if (!lightPresed) { controlLight(); } lightPresed = true; } else { lightPresed = false; } if (myGamepad.buttons[11].pressed) { showConfigOptions(); } controlCar(command); } } }, 1000 / 10) }
+    </script>
+</body>
+</html>

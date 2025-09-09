@@ -1,0 +1,2 @@
+"C:\Program Files (x86)\GnuWin32\bin\gzip.exe" -f -k front_gui.html
+"C:\Program Files\Vim\vim91\xxd.exe" -i frontend.html.gz > web_gzip.h
