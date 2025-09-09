@@ -2,7 +2,6 @@
 
 This project transforms an ESP32-CAM module into a versatile WiFi-controlled car, fully operated via a web interface. Its standout feature is the ability to stream live video to multiple viewers simultaneously and offer deep customization for the motors.
 
-<!-- You can replace this link with an actual screenshot of your interface -->
 
 ## ✅ Key Features
 
@@ -30,8 +29,7 @@ This project transforms an ESP32-CAM module into a versatile WiFi-controlled car
 ### 1. Clone the Repository
 
 ```bash
-git clone [your-repository-url]
-cd [repository-folder-name]
+git clone https://github.com/Hiroshimeow/ESP32_WebSocket_Car
 ```
 
 ### 2. Install Arduino Libraries
