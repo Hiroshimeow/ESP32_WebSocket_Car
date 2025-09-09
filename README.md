@@ -1,2 +1,104 @@
-# ESP32_WebSocket_Car
-ESP32-CAM WiFi Car with Multi-Client Streaming
+# ESP32-CAM WiFi Car with Multi-Client Streaming
+
+This project transforms an ESP32-CAM module into a versatile WiFi-controlled car, fully operated via a web interface. Its standout feature is the ability to stream live video to multiple viewers simultaneously and offer deep customization for the motors.
+
+<!-- You can replace this link with an actual screenshot of your interface -->
+
+## ✅ Key Features
+
+*   **Multi-Client Video Streaming:** Real-time video broadcast to multiple browsers/devices at once using WebSockets.
+*   **Web-Based Control Interface:** A modern, responsive interface compatible with both desktop and mobile devices.
+*   **Multiple Control Modes:** Supports an on-screen virtual joystick, keyboard arrow keys, and Gamepad input.
+*   **AP & STA Modes:** Can operate as a standalone WiFi Access Point (AP Mode) or connect to an existing WiFi network (STA Mode).
+*   **Advanced Motor Customization:**
+    *   Independently adjust the maximum power for the main drive motor (forward/backward) and the steering motor (left/right).
+    *   Independently reverse the direction of each motor to easily fix reversed wiring.
+    *   All settings are saved on the ESP32's flash memory and persist across reboots.
+*   **Auxiliary Controls:** Toggle an onboard LED and a horn (Claxon).
+*   **WiFi Manager:** Scan for and connect to new WiFi networks directly from the web interface.
+
+## ⚙️ Hardware Requirements
+
+1.  **ESP32-CAM Module:** The main development board.
+2.  **H-Bridge Motor Driver:** e.g., L298N, DRV8833, or a similar module to control 2 DC motors.
+3.  **DC Motors:** Two units (one for the rear wheels, one for the front steering).
+4.  **Car Chassis:** Any suitable 2-wheel drive chassis.
+5.  **Power Source:** A LiPo battery, 18650 cells, or a power bank capable of supplying sufficient current for both the ESP32 and the motors.
+
+## 🛠️ Installation and Setup
+
+### 1. Clone the Repository
+
+```bash
+git clone [your-repository-url]
+cd [repository-folder-name]
+```
+
+### 2. Install Arduino Libraries
+
+Open the Arduino IDE and navigate to **Sketch > Include Library > Manage Libraries...**. Search for and install the following libraries:
+
+*   `ArduinoJson`
+*   `WebSockets` (by Markus Sattler)
+
+### 3. Configure the Code
+
+Open the `ESP32_WebSocket_Car.ino` file:
+
+*   **Select the correct board:** Go to **Tools > Board > ESP32 Arduino** and select **"AI Thinker ESP32-CAM"**.
+*   **Verify GPIO pins:** Ensure the GPIO pins defined at the top of the file match your physical wiring.
+
+    ```cpp
+    // --- GPIO Pins ---
+    int gpDriveF = 14; int gpDriveB = 12; // Rear motor
+    int gpSteerL = 15; int gpSteerR = 13; // Front motor
+    ```
+
+### 4. Compress the Web Interface (Crucial Step)
+
+The web interface (`front_gui.html`) is not uploaded as a separate file. Instead, it is compressed with `gzip` and converted into a C header file (`web_gzip.h`) to be compiled directly into the firmware.
+
+You will need two command-line tools: `gzip` and `xxd` (often included with Vim or Git for Windows). Run the following commands in a terminal or Command Prompt from the project's root directory:
+
+**Command 1: Compress the HTML file**
+
+```bash
+"C:\Program Files (x86)\GnuWin32\bin\gzip.exe" -f -k front_gui.html```
+
+*This command creates the file `front_gui.html.gz`.*
+
+**Command 2: Convert the compressed file to a C Header**
+
+```bash
+"C:\Program Files\Vim\vim91\xxd.exe" -i front_gui.html.gz > web_gzip.h
+```
+
+*This command reads the `.gz` file and generates `web_gzip.h`, which contains the file's content as a C byte array.*
+
+> **Note:** The paths to `gzip.exe` and `xxd.exe` may be different on your system. Please adjust them accordingly. You must re-run these two commands every time you modify `front_gui.html`.
+
+### 5. Compile and Upload
+
+Once the `web_gzip.h` file is generated, compile and upload the `ESP32_WebSocket_Car.ino` sketch to your ESP32-CAM board.
+
+## 🚀 How to Use
+
+1.  **Power On:** Apply power to the car.
+2.  **Connect to WiFi:**
+    *   **First Use:** The ESP32 will create a WiFi access point named **"WIFI Car"**. Connect your device to this network.
+    *   **After Configuration:** If you have saved your home WiFi credentials, the car will automatically connect to it.
+3.  **Access the Interface:**
+    *   Open a web browser and navigate to the car's IP address. You can find this IP address in the Arduino IDE's Serial Monitor window.
+    *   In AP mode, the default IP address is usually `192.168.4.1`.
+4.  **Control & Configure:**
+    *   Use the virtual joystick or keyboard arrow keys to move the car.
+    *   Click the **"WIFI and Config"** button to access the settings page, where you can connect the car to a different WiFi network and fine-tune the motor power/direction.
+
+## 📄 File Structure
+
+*   `ESP32_WebSocket_Car.ino`: The main project sketch file.
+*   `camera_pins.h`: GPIO pin definitions for the camera module.
+*   `front_gui.html`: The user interface file (HTML, CSS, JavaScript).
+*   `web_gzip.h`: The auto-generated header file from `front_gui.html`. Do not edit this file directly.
+
+## 📜 License
